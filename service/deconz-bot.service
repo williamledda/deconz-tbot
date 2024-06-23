@@ -1,0 +1,14 @@
+[Unit]
+Description=Deconz Telegram bot
+After=network.target network-online.target
+
+[Service]
+# Customize Working dir and Exec start
+WorkingDirectory=<Directory where the bot is installed>
+ExecStart=<Your python installation or virtual environment> main.py
+Restart=on-failure
+RestartSec=10
+SyslogIdentifier=deconz-bot
+
+[Install]
+WantedBy=multi-user.target
