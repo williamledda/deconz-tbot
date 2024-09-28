@@ -1,11 +1,14 @@
+from http import HTTPStatus
+
 import requests
 import subprocess
 import configparser
+import json
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, Application
 
 phoscon_url = ""
-lights_map = {"esterno": 1, "viale": 2}
+lights_map = {"esterno": 1, "viale": 2, "ingresso": 3}
 
 
 def log(message: str) -> None:
@@ -37,7 +40,10 @@ async def restart_deconz(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 async def get_lights(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     response = requests.get(f"{phoscon_url}/lights")
-    await update.message.reply_text(f"Lights: {response.json()}")
+    if response.status_code == HTTPStatus.OK:
+        await update.message.reply_text(f"Lights: {json.dumps(response.json(), indent=1)}")
+    else:
+        await update.message.reply_text(f"Error: {response.status_code}")
 
 
 async def set_on(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -52,7 +58,10 @@ async def set_on(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         log(f"Switch on {context.args[0].lower()} lights...")
         light_id = lights_map[context.args[0].lower()]
         response = requests.put(f"{phoscon_url}/lights/{light_id}/state", data='{"on": true}')
-        await update.message.reply_text(f"On: {response.json()}")
+        if response.status_code == HTTPStatus.OK:
+            await update.message.reply_text(f"On: {json.dumps(response.json(), indent=1)}")
+        else:
+            await update.message.reply_text(f"Error: {response.status_code}")
     else:
         await update.message.reply_text(f"Light {context.args[0]} not found")
 
@@ -69,7 +78,10 @@ async def set_off(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         log(f"Switch off {context.args[0].lower()} lights...")
         light_id = lights_map[context.args[0].lower()]
         response = requests.put(f"{phoscon_url}/lights/{light_id}/state", data='{"on": false}')
-        await update.message.reply_text(f"Off: {response.json()}")
+        if response.status_code == HTTPStatus.OK:
+            await update.message.reply_text(f"On: {json.dumps(response.json(), indent=1)}")
+        else:
+            await update.message.reply_text(f"Error: {response.status_code}")
     else:
         await update.message.reply_text(f"Light {context.args[0]} not found")
 
