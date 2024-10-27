@@ -9,6 +9,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, Appli
 
 phoscon_url = ""
 lights_map = {"esterno": 1, "viale": 2, "ingresso": 3}
+therm_map = {"sala": 6}
 
 
 def log(message: str) -> None:
@@ -85,12 +86,55 @@ async def set_off(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     else:
         await update.message.reply_text(f"Light {context.args[0]} not found")
 
+async def thermostats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    response = requests.get(f"{phoscon_url}/sensors")
+    if response.status_code == HTTPStatus.OK:
+        out = {}
+        json_response = response.json()
+        for key in json_response.keys():
+            if json_response[key]["type"] == 'ZHAThermostat':
+                out[key] = json_response[key]
+
+        await update.message.reply_text(f"Thermostats {json.dumps(out, indent=2)}")
+    else:
+        await update.message.reply_text(f"Error: {response.status_code}")
+
+
+async def set_heat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if len(context.args) == 0:
+        await update.message.reply_text(f"Missing target temperature")
+    else:
+        try:
+            set_point = float(context.args[0]) * 100
+            # Clamp to 500
+            set_point = max(set_point, 500.0)
+            response = requests.put(f"{phoscon_url}/sensors/6/config", data=f'{{ "heatsetpoint": {set_point} }}')
+
+            if response.status_code == HTTPStatus.OK:
+                await update.message.reply_text(f"Temperature set: {json.dumps(response.json(), indent=2)}")
+            else:
+                await update.message.reply_text(f"Error: {response.status_code}")
+        except ValueError:
+            await update.message.reply_text(f"Error: {context.args[0]} is not a valid temperature")
+
+
+async def set_heat_off(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    response = requests.put(f"{phoscon_url}/sensors/6/config", data='{ "heatsetpoint": 500}')
+
+    if response.status_code == HTTPStatus.OK:
+        await update.message.reply_text(f"Thermostat: {json.dumps(response.json(), indent=2)}")
+    else:
+        await update.message.reply_text(f"Error: {response.status_code}")
+
 
 async def post_init(my_app: Application) -> None:
     await my_app.bot.set_my_commands([
         ("lights", "Get list of lights"),
+        ("thermostats", "Get list of thermostats"),
         ("on", "Light on"),
         ("off", "Light off"),
+        ("heat", "Set thermostat temperature"),
+        ("heat_off", "Set thermostat off"),
         ("poweroff", "Power off gateway"),
         ("reboot", "Reboot gateway"),
         ("restart_service", "Restart only deconz"),
@@ -110,6 +154,9 @@ if __name__ == '__main__':
         app.add_handler(CommandHandler("lights", get_lights))
         app.add_handler(CommandHandler("on", set_on))
         app.add_handler(CommandHandler("off", set_off))
+        app.add_handler(CommandHandler("thermostats", thermostats))
+        app.add_handler(CommandHandler("heat", set_heat))
+        app.add_handler(CommandHandler("heat_off", set_heat_off))
 
         app.run_polling()
     else:
